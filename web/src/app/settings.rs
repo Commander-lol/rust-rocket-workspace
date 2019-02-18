@@ -30,7 +30,7 @@ pub const ENV_PREFIX: &'static str = "APP";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     /// The disk path that contains static assets
-    static_dir: String,
+    pub static_dir: String,
 
     // Rocket Variable are all optional
     // becuase rocket provides defaults
