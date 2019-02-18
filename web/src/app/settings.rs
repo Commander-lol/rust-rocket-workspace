@@ -6,18 +6,50 @@ use std::collections::HashMap;
 use std::convert::Into;
 use std::str::FromStr;
 
+/// The prefix used to pull in environment variables. Any variable prefixed with this value that
+/// does not correlate to a property of `Settings` will be added to the `extras` map, which is
+/// provided to rocket.
+///
+/// Ensure that nothing sensitive in your environment has this prefix.
+///
+/// # Examples
+///
+/// ```
+/// pub const ENV_PREFIX: &'static str = "MY_WEBSITE";
+///
+/// // Matches "MY_WEBSITE_PORT", "MY_WEBSITE_STATIC_DIR", etc.
+/// ```
+///
+///
 pub const ENV_PREFIX: &'static str = "APP";
 
+/// Holds settings for the application. This struct will be passed
+/// to rocket, and must contain at least the fields marked [Required].
+/// Other fields can be added and removed depending on the application's
+/// requirements.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
+    /// The disk path that contains static assets
+    static_dir: String,
+
+    // Rocket Variable are all optional
+    // becuase rocket provides defaults
+    /// [Required] The address for the app to listen on
     address: Option<String>,
+    /// [Required] The port the app will bind to
     port: Option<u16>,
+    /// [Required] The level of logging that the web framework should perform.
+    /// Should be one of "critical", "normal", "debug" and "off"
     log: Option<String>,
+    /// [Required] The number of worker threads that should serve requests
     workers: Option<u16>,
+    /// [Required] The app's secret key, used to sign cookies
     secret_key: Option<String>,
+    /// [Required] Additional config values for extensions of rocket
     extras: HashMap<String, String>,
 }
 
+/// Keys that should be filtered out of the extras map, because they are defined as fields on `Settings`
 const FILTER_EXTRA_KEYS: [&'static str; 5] = ["address", "port", "log", "workers", "secret_key"];
 
 impl Settings {
@@ -26,6 +58,8 @@ impl Settings {
         use std::env::var;
 
         let mut conf = Config::new();
+
+        conf.set_default("static_dir", concat!(env!("CARGO_MANIFEST_DIR"), "/public"))?;
 
         conf.merge(File::with_name("config").required(false))?;
 
