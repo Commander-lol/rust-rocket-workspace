@@ -6,6 +6,73 @@ use std::collections::HashMap;
 use std::convert::Into;
 use std::str::FromStr;
 
+/// Map one or more settings value names to environment variables directly
+///
+/// # Examples
+///
+/// Using `map_to_env` in non-strict mode will ignore errors retrieving the
+/// variable from the environment (commonly the variable not being set). If
+/// an error is found, the value will not be set on the config map;
+/// this essentially delegates existence checks to your settings config
+/// conversion.
+///
+/// ```
+/// let mut conf = Config::new();
+///
+/// map_to_env!(conf, {
+///     "port" => "PORT",
+///     "static_dir" => "CONTAINER_VOLUME_MOUNT"
+/// });
+/// ```
+///
+/// Conversely, using `map_to_env` in strict mode will propagate errors from reading
+/// the environment. This means that a variable not being set will be raised as an
+/// error.
+///
+/// ```
+/// let mut conf = Config::new();
+///
+/// map_to_env!(strict conf, {
+///     "dburl" => "DATABASE_URL"
+/// });
+/// ```
+///
+/// If you need both strict and non-strict mappings, use two blocks to make it
+/// explicit which variables are required
+///
+/// ```
+/// let mut conf = Config::new();
+///
+/// map_to_env!(conf, {
+///     "port" => "PORT",
+///     "static_dir" => "CONTAINER_VOLUME_MOUNT"
+/// });
+///
+/// map_to_env!(strict conf, {
+///     "dburl" => "DATABASE_URL"
+/// });
+/// ```
+macro_rules! map_to_env {
+    ($settings:ident, {$( $setting_name:expr => $env_name:expr ),+}) => {
+        {
+            use std::env::var;
+            $(
+            if let Ok(env_var) = var($env_name) {
+                $settings.set($setting_name, env_var)?;
+            }
+            )+
+        }
+    };
+    (strict $settings:ident, {$( $setting_name:expr => $env_name:expr ),+}) => {
+        {
+            use std::env::var;
+            $(
+                $settings.set($setting_name, var($env_name)?)?;
+            )+
+        }
+    };
+}
+
 /// The prefix used to pull in environment variables. Any variable prefixed with this value that
 /// does not correlate to a property of `Settings` will be added to the `extras` map, which is
 /// provided to rocket.
@@ -31,6 +98,8 @@ pub const ENV_PREFIX: &'static str = "APP";
 pub struct Settings {
     /// The disk path that contains static assets
     pub static_dir: String,
+    /// The route prefix to use when mounting the static file handler
+    pub static_route: String,
 
     // Rocket Variable are all optional
     // becuase rocket provides defaults
@@ -60,6 +129,11 @@ impl Settings {
         let mut conf = Config::new();
 
         conf.set_default("static_dir", concat!(env!("CARGO_MANIFEST_DIR"), "/public"))?;
+        conf.set_default("static_route", String::from("/static"))?;
+
+        map_to_env!(conf, {
+            "port" => "PORT"
+        });
 
         conf.merge(File::with_name("config").required(false))?;
 
